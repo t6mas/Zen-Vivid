@@ -1,56 +1,136 @@
+:root {
+  --zen-vivid-page-bg: var(--zen-main-browser-background-toolbar, var(--zen-main-browser-background, transparent));
+  --zen-vivid-page-fg: var(--toolbar-color, currentColor);
+  --zen-vivid-transition: 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --zen-vivid-neutral-opacity: 0.12;
+  --zen-vivid-neutral-light: rgba(255, 255, 255, var(--zen-vivid-neutral-opacity));
+  --zen-vivid-neutral-dark: rgba(0, 0, 0, var(--zen-vivid-neutral-opacity));
+}
+
 @layer zen-vivid {
   :root {
-    --zen-vivid-transition: 100ms linear;
+    background-image: none !important;
   }
 
-  /* Toolbar: barra de direcciones */
-  #zen-appcontent-navbar-wrapper,
-  #nav-bar {
-    background-color: var(--zen-vivid-toolbar-bg, var(--zen-main-browser-background-toolbar)) !important;
-    color: var(--zen-vivid-toolbar-fg, inherit) !important;
-    transition: background-color var(--zen-vivid-transition), color var(--zen-vivid-transition);
-  }
-
-  /* Sidebar completo */
-  #browser,
-  #appcontent,
-  #main-window,
   #navigator-toolbox,
-  .browserSidebarContainer,
+  #nav-bar,
+  #PersonalToolbar,
+  #TabsToolbar,
+  #titlebar,
+  #zen-appcontent-navbar-wrapper,
   #sidebar-box,
   #sidebar-main,
-  #titlebar,
   #zen-sidebar-top-buttons,
   #zen-sidebar-foot-buttons,
-  .zen-workspace-tabs-section,
-  #notifications-toolbar,
-  #zen-media-controls-toolbar {
+  #zen-media-controls-toolbar,
+  .browserSidebarContainer,
+  .zen-workspace-tabs-section {
     appearance: none !important;
     -moz-appearance: none !important;
-    background-color: var(--zen-vivid-sidebar-bg, var(--zen-main-browser-background)) !important;
-    color: var(--zen-vivid-sidebar-fg, inherit) !important;
     background-image: none !important;
-    border-radius: 0 !important;
-    border: none !important;
+    background-color: var(--zen-vivid-page-bg) !important;
+    color: var(--zen-vivid-page-fg) !important;
+    border-color: color-mix(in srgb, var(--zen-vivid-page-fg) 12%, transparent) !important;
     box-shadow: none !important;
-    transition: background-color var(--zen-vivid-transition), color var(--zen-vivid-transition), fill var(--zen-vivid-transition), box-shadow var(--zen-vivid-transition);
+    transition:
+      background-color var(--zen-vivid-transition),
+      color var(--zen-vivid-transition),
+      fill var(--zen-vivid-transition),
+      border-color var(--zen-vivid-transition),
+      box-shadow var(--zen-vivid-transition) !important;
   }
 
-  /* Iconos y texto del sidebar */
-  #zen-sidebar-top-buttons toolbarbutton,
-  #zen-sidebar-foot-buttons toolbarbutton,
-  #zen-sidebar-top-buttons .toolbarbutton-icon,
-  #zen-sidebar-foot-buttons .toolbarbutton-icon,
-  #zen-sidebar-top-buttons image,
-  #zen-sidebar-foot-buttons image {
-    color: var(--zen-vivid-sidebar-fg, currentColor) !important;
-    fill: var(--zen-vivid-sidebar-fg, currentColor) !important;
-    --toolbarbutton-icon-fill: var(--zen-vivid-sidebar-fg, currentColor) !important;
-    transition: color var(--zen-vivid-transition), fill var(--zen-vivid-transition), background-color var(--zen-vivid-transition);
+  #main-window,
+  #browser,
+  #appcontent,
+  #tabbrowser-tabbox,
+  #tabbrowser-tabpanels {
+    background-image: none !important;
+    background-color: var(--zen-vivid-page-bg, transparent) !important;
+    transition: background-color var(--zen-vivid-transition) !important;
   }
 
-  /* Tinte de ventana */
-  #zen-browser-background::before {
-    background: var(--zen-vivid-window-tint, transparent) !important;
+  #nav-bar-customization-target > :not(#urlbar-container),
+  #nav-bar-customization-target > :not(#urlbar-container) :is(toolbarbutton, .toolbarbutton-1, .toolbarbutton-icon, .urlbar-icon),
+  #PersonalToolbar :is(toolbarbutton, .toolbarbutton-1, .toolbarbutton-icon),
+  #PanelUI-button,
+  #zen-sidebar-top-buttons :is(toolbarbutton, .toolbarbutton-1, .toolbarbutton-icon, image),
+  #zen-sidebar-foot-buttons :is(toolbarbutton, .toolbarbutton-1, .toolbarbutton-icon, image),
+  #zen-media-controls-toolbar :is(toolbarbutton, .toolbarbutton-1, .toolbarbutton-icon, image),
+  .zen-current-workspace-indicator-name,
+  .tabbrowser-tab .tab-content,
+  .tabbrowser-tab .tab-label,
+  .tabbrowser-tab .tab-icon-image {
+    color: var(--zen-vivid-page-fg) !important;
+    fill: currentColor !important;
+    --toolbarbutton-icon-fill: currentColor !important;
+    --toolbar-field-color: var(--zen-vivid-page-fg) !important;
+    --toolbar-color: var(--zen-vivid-page-fg) !important;
+  }
+
+  #sidebar-box,
+  #sidebar-main,
+  #zen-sidebar-top-buttons,
+  #zen-sidebar-foot-buttons,
+  #zen-sidebar-splitter,
+  #sidebar-splitter {
+    background-color: var(--zen-vivid-page-bg) !important;
+  }
+
+  #zen-sidebar-splitter,
+  #sidebar-splitter {
+    border: none !important;
+    background-image: none !important;
+    min-width: 5px !important;
+    width: 5px !important;
+    opacity: 1 !important;
+    transition: background-color var(--zen-vivid-transition) !important;
+  }
+
+  #zen-sidebar-splitter:hover,
+  #sidebar-splitter:hover,
+  #zen-sidebar-splitter:active,
+  #sidebar-splitter:active {
+    background-color: color-mix(in srgb, var(--zen-vivid-page-fg) 18%, transparent) !important;
+  }
+
+  #zen-sidebar-top-buttons toolbarbutton:hover,
+  #zen-sidebar-foot-buttons toolbarbutton:hover {
+    background-color: color-mix(in srgb, var(--zen-vivid-page-fg) 12%, transparent) !important;
+  }
+
+  #zen-sidebar-top-buttons toolbarbutton[selected="true"],
+  #zen-sidebar-top-buttons toolbarbutton[open="true"],
+  #zen-sidebar-foot-buttons toolbarbutton[selected="true"],
+  #zen-sidebar-foot-buttons toolbarbutton[open="true"] {
+    background-color: color-mix(in srgb, var(--zen-vivid-page-fg) 18%, transparent) !important;
+  }
+
+  :root:not([zen-compact-mode="true"]) #navigator-toolbox,
+  :root:not([zen-compact-mode="true"]) #sidebar-box {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--zen-vivid-page-fg) 10%, transparent) inset !important;
+  }
+
+  :root[zen-compact-mode="true"] #navigator-toolbox,
+  :root[zen-compact-mode="true"] #sidebar-box {
+    box-shadow: none !important;
+  }
+
+  :root[zen-single-toolbar="true"] #navigator-toolbox {
+    border-bottom: 1px solid color-mix(in srgb, var(--zen-vivid-page-fg) 10%, transparent) !important;
+  }
+
+  #zen-appcontent-navbar-wrapper {
+    border-bottom: 1px solid color-mix(in srgb, var(--zen-vivid-page-fg) 8%, transparent) !important;
+  }
+
+  :root[data-zen-vivid-source="fallback"] #navigator-toolbox,
+  :root[data-zen-vivid-source="fallback"] #sidebar-box {
+    background-color: var(--zen-vivid-neutral-dark, rgba(0, 0, 0, 0.12)) !important;
+  }
+
+  :root[data-zen-vivid-scheme="light"][data-zen-vivid-source="fallback"] #navigator-toolbox,
+  :root[data-zen-vivid-scheme="light"][data-zen-vivid-source="fallback"] #sidebar-box {
+    background-color: var(--zen-vivid-neutral-light, rgba(255, 255, 255, 0.12)) !important;
   }
 }

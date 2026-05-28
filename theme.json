@@ -1,20 +1,21 @@
 {
   "id": "zen-vivid",
-  "name": "Zen-Vivid",
-  "description": "Dynamic toolbar and sidebar coloring based on the visible part of the page. Works with Boosts.",
-  "author": "Zen-Vivid Team",
-  "version": "1.0.0",
-  "ai": "partial",
+  "name": "Zen Vivid",
+  "description": "A page-aware Zen mod that samples the visible top of the page, follows scroll changes, and tints the chrome and sidebar to match Boosts too.",
+  "author": "OpenAI",
+  "version": "0.1.0",
   "updatedAt": "2026-05-28",
+  "createdAt": "2026-05-28",
+  "fork": [
+    "zen"
+  ],
   "tags": [
     "addressbar",
     "sidebar",
-    "dynamic",
+    "adaptive",
     "boosts",
-    "theming"
-  ],
-  "fork": [
-    "zen"
+    "theming",
+    "zen browser"
   ],
   "scripts": {
     "zen-vivid.uc.js": {
@@ -28,7 +29,5 @@
     "content": ""
   },
   "preferences": "preferences.json",
-  "readme": "https://raw.githubusercontent.com/example/zen-vivid/main/README.md",
-  "createdAt": "2026-05-28",
-  "homepage": "https://github.com/example/zen-vivid"
+  "readme": "README.md"
 }

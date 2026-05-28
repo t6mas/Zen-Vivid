@@ -1,9 +1,9 @@
 {
-  "id": "zen-vivid-dynamic-theme",
+  "id": "zen-vivid",
   "name": "Zen Vivid",
-  "description": "Un tema din√°mico que adapta la barra de direcciones y el sidebar al color de la p√°gina en tiempo real al hacer scroll. Compatible con Boosts.",
+  "description": "Tema din·mico que adapta la barra de direcciones y el sidebar al color de la p·gina al hacer scroll. Compatible con Boosts.",
   "author": "Tu Nombre / Creado con Gemini",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "style": {
     "chrome": "style.css",
     "content": ""

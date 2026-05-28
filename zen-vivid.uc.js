@@ -1,18 +1,30 @@
 // ==UserScript==
 // @name           Zen-Vivid
-// @description    Dynamic toolbar and sidebar coloring
-// @version        1.0.0
+// @description    Dynamic toolbar & sidebar coloring
+// @version        2.0.0
 // ==/UserScript==
 
 (() => {
   'use strict';
 
+  // ──────────────────────── Inicialización segura de servicios ────────────────────────
+  let Services;
+  try {
+    if (typeof Services !== 'undefined') {
+      // Ya está en el ámbito
+    } else {
+      Services = ChromeUtils.importESModule('resource://gre/modules/Services.sys.mjs').Services;
+    }
+  } catch (e) {
+    console.error('[Zen-Vivid] No se pudo cargar Services:', e);
+    return;
+  }
+
+  // ──────────────────────── Constantes ────────────────────────
   const FRAME_SCRIPT_URL = 'chrome://zen-vivid/content/frame.js';
   const MESSAGE_NAME = 'zen-vivid:color';
-  const DEBOUNCE_MS = 150;
-
-  // Preferencias
   const PREF_BRANCH = 'uc.zen-vivid.';
+
   const PREFS = {
     enabled: PREF_BRANCH + 'enabled',
     colorToolbar: PREF_BRANCH + 'color-toolbar',
@@ -21,7 +33,7 @@
     tintStrength: PREF_BRANCH + 'tint.strength'
   };
 
-  const DEFAULT_SETTINGS = {
+  const DEFAULTS = {
     enabled: true,
     colorToolbar: true,
     colorSidebar: true,
@@ -29,82 +41,67 @@
     tintStrength: 25
   };
 
-  let settings = { ...DEFAULT_SETTINGS };
-  let lastColor = null;
-  let frameScriptLoaded = false;
+  let settings = { ...DEFAULTS };
+  const colorsByBrowser = new WeakMap();
+  let activeBrowser = null;
 
-  // Cargar preferencias iniciales
+  // ──────────────────────── Funciones de preferencias ────────────────────────
   function loadSettings() {
-    for (const [key, defaultValue] of Object.entries(DEFAULT_SETTINGS)) {
-      try {
-        const prefName = PREFS[key] || `${PREF_BRANCH}${key}`;
-        settings[key] = Services.prefs.getBoolPref(prefName) ?? defaultValue;
-      } catch {}
-    }
-    try {
-      settings.tintStrength = Services.prefs.getIntPref(PREFS.tintStrength) ?? 25;
-    } catch {}
-  }
-
-  // Guardar preferencias
-  function saveSetting(key, value) {
-    try {
+    for (const [key, defaultValue] of Object.entries(DEFAULTS)) {
       const prefName = PREFS[key] || `${PREF_BRANCH}${key}`;
-      if (typeof value === 'boolean') {
-        Services.prefs.setBoolPref(prefName, value);
-      } else if (typeof value === 'number') {
-        Services.prefs.setIntPref(prefName, value);
+      try {
+        if (typeof defaultValue === 'boolean') {
+          settings[key] = Services.prefs.getBoolPref(prefName, defaultValue);
+        } else if (typeof defaultValue === 'number') {
+          settings[key] = Services.prefs.getIntPref(prefName, defaultValue);
+        }
+      } catch (_) {
+        settings[key] = defaultValue;
       }
-    } catch (e) {
-      console.error('[Zen-Vivid] Error saving setting:', key, e);
+    }
+    if (settings.tintStrength < 0 || settings.tintStrength > 100) settings.tintStrength = 25;
+  }
+
+  function onPrefChange(subject, topic, data) {
+    if (topic !== 'nsPref:changed') return;
+    const changedPref = data;
+    if (Object.values(PREFS).includes(changedPref)) {
+      loadSettings();
+      applyColorToUI(colorsByBrowser.get(activeBrowser));
     }
   }
 
-  // Observar cambios de preferencias (para el engranaje)
-  function observePrefs() {
-    const prefObserver = {
-      observe(subject, topic, data) {
-        if (topic !== 'nsPref:changed') return;
-        const changedPref = data;
-        for (const [key, prefName] of Object.entries(PREFS)) {
-          if (changedPref === prefName) {
-            loadSettings();
-            applyCurrentColor(lastColor);
-            break;
-          }
-        }
-      }
-    };
-    Services.prefs.addObserver(PREF_BRANCH, prefObserver);
-  }
+  Services.prefs.addObserver(PREF_BRANCH, onPrefChange);
 
-  // Aplicar color a las variables CSS
-  function applyCurrentColor(color) {
+  // ──────────────────────── Aplicación visual ────────────────────────
+  function applyColorToUI(color) {
+    const root = document.documentElement.style;
+
     if (!settings.enabled || !color) {
-      clearColors();
+      root.removeProperty('--zen-vivid-toolbar-bg');
+      root.removeProperty('--zen-vivid-toolbar-fg');
+      root.removeProperty('--zen-vivid-sidebar-bg');
+      root.removeProperty('--zen-vivid-sidebar-fg');
+      root.removeProperty('--zen-tab-header-background');
+      root.removeProperty('--zen-tab-header-foreground');
+      root.removeProperty('--zen-vivid-window-tint');
       return;
     }
 
-    const root = document.documentElement.style;
-    const bg = color.bg;
-    const fg = color.fg;
-
-    // Toolbar
     if (settings.colorToolbar) {
-      root.setProperty('--zen-vivid-toolbar-bg', bg, 'important');
-      root.setProperty('--zen-vivid-toolbar-fg', fg, 'important');
+      root.setProperty('--zen-vivid-toolbar-bg', color.bg, 'important');
+      root.setProperty('--zen-vivid-toolbar-fg', color.fg, 'important');
     } else {
       root.removeProperty('--zen-vivid-toolbar-bg');
       root.removeProperty('--zen-vivid-toolbar-fg');
     }
 
-    // Sidebar (mantenemos compatibilidad con las variables que usa tu sidebar)
     if (settings.colorSidebar) {
-      root.setProperty('--zen-vivid-sidebar-bg', bg, 'important');
-      root.setProperty('--zen-vivid-sidebar-fg', fg, 'important');
-      // Compatibilidad con blended-sidebar
-      root.setProperty('--zen-tab-header-background', bg, 'important');
-      root.setProperty('--zen-tab-header-foreground', fg, 'important');
+      root.setProperty('--zen-vivid-sidebar-bg', color.bg, 'important');
+      root.setProperty('--zen-vivid-sidebar-fg', color.fg, 'important');
+      // Compatibilidad con el sidebar que ya tienes
+      root.setProperty('--zen-tab-header-background', color.bg, 'important');
+      root.setProperty('--zen-tab-header-foreground', color.fg, 'important');
     } else {
       root.removeProperty('--zen-vivid-sidebar-bg');
       root.removeProperty('--zen-vivid-sidebar-fg');
@@ -112,94 +109,112 @@
       root.removeProperty('--zen-tab-header-foreground');
     }
 
-    // Tinte de ventana (opcional)
     if (settings.tintEnabled) {
-      const strength = settings.tintStrength / 100;
-      const tint = `color-mix(in srgb, ${bg} ${settings.tintStrength}%, transparent)`;
+      const tint = `color-mix(in srgb, ${color.bg} ${settings.tintStrength}%, transparent)`;
       root.setProperty('--zen-vivid-window-tint', tint, 'important');
     } else {
       root.removeProperty('--zen-vivid-window-tint');
     }
   }
 
-  function clearColors() {
-    const root = document.documentElement.style;
-    root.removeProperty('--zen-vivid-toolbar-bg');
-    root.removeProperty('--zen-vivid-toolbar-fg');
-    root.removeProperty('--zen-vivid-sidebar-bg');
-    root.removeProperty('--zen-vivid-sidebar-fg');
-    root.removeProperty('--zen-tab-header-background');
-    root.removeProperty('--zen-tab-header-foreground');
-    root.removeProperty('--zen-vivid-window-tint');
-  }
-
-  // Recibir color del frame script
+  // ──────────────────────── Comunicación con los frames ────────────────────────
   function handleMessage(message) {
-    if (message.name !== MESSAGE_NAME) return;
-    const color = message.data;
-    lastColor = color;
-    applyCurrentColor(color);
+    if (message.name !== MESSAGE_NAME || message.target !== message.data.browser) return;
+    const browser = message.target;
+    const color = message.data.color;
+    colorsByBrowser.set(browser, color);
+    if (browser === activeBrowser) {
+      applyColorToUI(color);
+    }
   }
 
-  // Inyectar frame script en una pestaña
+  function requestColor(browser) {
+    if (!browser || !browser.messageManager) return;
+    browser.messageManager.sendAsyncMessage('zen-vivid:request-color');
+  }
+
   function injectFrameScript(browser) {
     if (!browser || !browser.messageManager) return;
+    if (browser.__zenVividInjected) return;
+    browser.__zenVividInjected = true;
+
     try {
       browser.messageManager.loadFrameScript(FRAME_SCRIPT_URL, false);
       browser.messageManager.addMessageListener(MESSAGE_NAME, handleMessage);
     } catch (e) {
-      console.error('[Zen-Vivid] Failed to load frame script:', e);
+      console.error('[Zen-Vivid] Error al inyectar frame script:', e);
+      browser.__zenVividInjected = false;
     }
   }
 
-  // Gestionar pestañas
-  function onTabSelect() {
-    const browser = gBrowser.selectedBrowser;
-    if (browser) {
-      injectFrameScript(browser);
-      // Forzar un refresco de color al cambiar de pestaña
-      if (browser.messageManager) {
-        browser.messageManager.sendAsyncMessage('zen-vivid:request-color');
-      }
-    }
+  // ──────────────────────── Gestión de pestañas ────────────────────────
+  function onTabSelect(event) {
+    const browser = event.target.linkedBrowser || gBrowser.selectedBrowser;
+    if (!browser) return;
+    activeBrowser = browser;
+    injectFrameScript(browser);
+    // Forzar una actualización inmediata
+    requestColor(browser);
+    // Restaurar el color si ya lo teníamos cacheado
+    const cached = colorsByBrowser.get(browser);
+    if (cached) applyColorToUI(cached);
   }
 
-  function init() {
-    if (typeof gBrowser === 'undefined' || !gBrowser) {
-      setTimeout(init, 500);
-      return;
-    }
-
-    loadSettings();
-    observePrefs();
-
-    // Inyectar en la pestaña actual y futuras
-    gBrowser.tabContainer.addEventListener('TabSelect', onTabSelect);
-    window.addEventListener('unload', () => {
-      gBrowser.tabContainer.removeEventListener('TabSelect', onTabSelect);
-      clearColors();
-    });
-
-    // Inyectar en todas las pestañas existentes
-    for (let i = 0; i < gBrowser.tabs.length; i++) {
-      const browser = gBrowser.getBrowserForTab(gBrowser.tabs[i]);
-      injectFrameScript(browser);
-    }
-
-    // También inyectar cuando se crea una nueva pestaña
+  function hookNewTabs() {
     const originalAddTab = gBrowser.addTab;
     gBrowser.addTab = function(...args) {
       const tab = originalAddTab.apply(this, args);
       const browser = gBrowser.getBrowserForTab(tab);
       injectFrameScript(browser);
+      // No enviamos requestColor aquí, se hará al seleccionar la pestaña
       return tab;
     };
-
-    // Pestaña activa inicial
-    onTabSelect();
   }
 
-  // Esperar a que el entorno esté listo
+  // ──────────────────────── Arranque ────────────────────────
+  function init() {
+    if (typeof gBrowser === 'undefined' || !gBrowser) {
+      setTimeout(init, 300);
+      return;
+    }
+
+    loadSettings();
+    hookNewTabs();
+
+    // Inyectar en todas las pestañas existentes
+    const tabs = gBrowser.tabs;
+    for (let i = 0; i < tabs.length; i++) {
+      const browser = gBrowser.getBrowserForTab(tabs[i]);
+      injectFrameScript(browser);
+    }
+
+    // Pestaña activa inicial
+    activeBrowser = gBrowser.selectedBrowser;
+    injectFrameScript(activeBrowser);
+    requestColor(activeBrowser);
+
+    gBrowser.tabContainer.addEventListener('TabSelect', onTabSelect);
+  }
+
+  // ──────────────────────── Limpieza (unload) ────────────────────────
+  window.addEventListener('unload', () => {
+    Services.prefs.removeObserver(PREF_BRANCH, onPrefChange);
+    gBrowser.tabContainer.removeEventListener('TabSelect', onTabSelect);
+    for (let i = 0; i < gBrowser.tabs.length; i++) {
+      const browser = gBrowser.getBrowserForTab(gBrowser.tabs[i]);
+      if (browser.messageManager) {
+        browser.messageManager.removeMessageListener(MESSAGE_NAME, handleMessage);
+      }
+    }
+    document.documentElement.style.removeProperty('--zen-vivid-toolbar-bg');
+    document.documentElement.style.removeProperty('--zen-vivid-toolbar-fg');
+    document.documentElement.style.removeProperty('--zen-vivid-sidebar-bg');
+    document.documentElement.style.removeProperty('--zen-vivid-sidebar-fg');
+    document.documentElement.style.removeProperty('--zen-tab-header-background');
+    document.documentElement.style.removeProperty('--zen-tab-header-foreground');
+    document.documentElement.style.removeProperty('--zen-vivid-window-tint');
+  });
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

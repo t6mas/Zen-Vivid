@@ -1,67 +1,56 @@
-/* === Zen-Vivid Styles === */
-:root {
-    --zen-vivid-color-transition: 100ms linear;
-}
+@layer zen-vivid {
+  :root {
+    --zen-vivid-transition: 100ms linear;
+  }
 
-/* --- Toolbar (barra de direcciones) --- */
-#zen-appcontent-navbar-wrapper {
+  /* Toolbar: barra de direcciones */
+  #zen-appcontent-navbar-wrapper,
+  #nav-bar {
     background-color: var(--zen-vivid-toolbar-bg, var(--zen-main-browser-background-toolbar)) !important;
     color: var(--zen-vivid-toolbar-fg, inherit) !important;
-    transition: background-color var(--zen-vivid-color-transition), color var(--zen-vivid-color-transition);
-}
+    transition: background-color var(--zen-vivid-transition), color var(--zen-vivid-transition);
+  }
 
-#nav-bar {
-    box-shadow: none !important;
-}
-
-/* --- Sidebar (igual que tu blended-sidebar pero usando las variables de Zen-Vivid) --- */
-#main-window,
-#browser,
-#appcontent {
-    background-image: none !important;
-    background-color: var(--zen-vivid-sidebar-bg, var(--zen-tab-header-background, var(--zen-main-browser-background))) !important;
-    transition-property: background-color !important;
-    transition-duration: var(--zen-vivid-color-transition) !important;
-    transition-timing-function: linear !important;
-}
-
-#navigator-toolbox,
-.browserSidebarContainer,
-#zen-sidebar-top-buttons,
-#zen-sidebar-foot-buttons,
-#sidebar-box,
-#sidebar-main,
-#titlebar,
-#notifications-toolbar,
-#zen-media-controls-toolbar,
-.zen-workspace-tabs-section {
+  /* Sidebar completo */
+  #browser,
+  #appcontent,
+  #main-window,
+  #navigator-toolbox,
+  .browserSidebarContainer,
+  #sidebar-box,
+  #sidebar-main,
+  #titlebar,
+  #zen-sidebar-top-buttons,
+  #zen-sidebar-foot-buttons,
+  .zen-workspace-tabs-section,
+  #notifications-toolbar,
+  #zen-media-controls-toolbar {
     appearance: none !important;
     -moz-appearance: none !important;
+    background-color: var(--zen-vivid-sidebar-bg, var(--zen-main-browser-background)) !important;
+    color: var(--zen-vivid-sidebar-fg, inherit) !important;
     background-image: none !important;
-    background-color: var(--zen-vivid-sidebar-bg, var(--zen-tab-header-background, var(--zen-main-browser-background))) !important;
-    color: var(--zen-vivid-sidebar-fg, var(--zen-tab-header-foreground, inherit)) !important;
     border-radius: 0 !important;
     border: none !important;
-    clip-path: none !important;
     box-shadow: none !important;
-    transition-property: background-color, color, fill, box-shadow !important;
-    transition-duration: var(--zen-vivid-color-transition) !important;
-    transition-timing-function: linear !important;
-}
+    transition: background-color var(--zen-vivid-transition), color var(--zen-vivid-transition), fill var(--zen-vivid-transition), box-shadow var(--zen-vivid-transition);
+  }
 
-#zen-sidebar-top-buttons toolbarbutton,
-#zen-sidebar-foot-buttons toolbarbutton,
-#zen-sidebar-top-buttons .toolbarbutton-icon,
-#zen-sidebar-foot-buttons .toolbarbutton-icon,
-#zen-sidebar-top-buttons image,
-#zen-sidebar-foot-buttons image {
-    color: var(--zen-vivid-sidebar-fg, var(--zen-tab-header-foreground, inherit)) !important;
+  /* Iconos y texto del sidebar */
+  #zen-sidebar-top-buttons toolbarbutton,
+  #zen-sidebar-foot-buttons toolbarbutton,
+  #zen-sidebar-top-buttons .toolbarbutton-icon,
+  #zen-sidebar-foot-buttons .toolbarbutton-icon,
+  #zen-sidebar-top-buttons image,
+  #zen-sidebar-foot-buttons image {
+    color: var(--zen-vivid-sidebar-fg, currentColor) !important;
     fill: var(--zen-vivid-sidebar-fg, currentColor) !important;
     --toolbarbutton-icon-fill: var(--zen-vivid-sidebar-fg, currentColor) !important;
-    opacity: 1 !important;
-    transition-property: color, fill, background-color !important;
-    transition-duration: var(--zen-vivid-color-transition) !important;
-    transition-timing-function: linear !important;
-}
+    transition: color var(--zen-vivid-transition), fill var(--zen-vivid-transition), background-color var(--zen-vivid-transition);
+  }
 
-/* Resto de reglas de tu sidebar... (omito las mismas de hover, etc. por brevedad) */
+  /* Tinte de ventana */
+  #zen-browser-background::before {
+    background: var(--zen-vivid-window-tint, transparent) !important;
+  }
+}

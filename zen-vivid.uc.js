@@ -1,89 +1,137 @@
 // ==UserScript==
 // @name           Zen Vivid
 // @description    Page-aware color blending for addressbar and sidebar in Zen Browser.
-//                 Reads the actual rendered pixel color at the top of the page and
-//                 applies it to the toolbar and sidebar with smooth transitions.
-//                 Supports Zen Boosts, compact mode, single-toolbar mode, and scroll changes.
-// @version        1.0.0
+//                 Reads the actual rendered pixel color just below the address bar and
+//                 applies it to the toolbar and sidebar via Zen's native CSS variables.
+//                 Supports Zen Boosts, scroll changes, compact mode, and single-toolbar mode.
+// @version        1.1.0
 // @author         zen-vivid
 // ==/UserScript==
 
 (() => {
   'use strict';
 
-  // ─── Duplicate-init guard ─────────────────────────────────────────────────
   if (window.__zenVivid_inited) return;
   window.__zenVivid_inited = true;
 
-  // ─── Preference keys ──────────────────────────────────────────────────────
-  const P = 'uc.zen-vivid.';
+  // ─── Pref keys ────────────────────────────────────────────────────────────
   const PREF = {
-    enabled:        P + 'enabled',
-    transitionMs:   P + 'transition-ms',
-    addrbar:        P + 'colorize-addressbar',
-    sidebar:        P + 'colorize-sidebar',
-    windowTint:     P + 'window-tint',
-    tintStrength:   P + 'tint-strength',
+    enabled:      'uc.zen-vivid.enabled',
+    transitionMs: 'uc.zen-vivid.transition-ms',
+    addrbar:      'uc.zen-vivid.colorize-addressbar',
+    sidebar:      'uc.zen-vivid.colorize-sidebar',
+    windowTint:   'uc.zen-vivid.window-tint',
+    tintStrength: 'uc.zen-vivid.tint-strength',
   };
 
   // ─── Message IDs ──────────────────────────────────────────────────────────
-  const MSG_COLOR = 'zen-vivid:color';
-  const MSG_FORCE = 'zen-vivid:force-sample';
+  const MSG_FALLBACK = 'zen-vivid:fallback-color';
+  const MSG_SCROLLED = 'zen-vivid:scrolled';
 
   // ─── State ────────────────────────────────────────────────────────────────
   const root = document.documentElement;
   let lastKey  = '';
   let boostObserver = null;
   let boostActive   = false;
+  let resampleTimer = 0;
 
-  // ─── Services helper ──────────────────────────────────────────────────────
-  let _svc = null;
-  function svc() {
-    if (_svc) return _svc;
-    try { _svc = Services; return _svc; } catch {}
-    try {
-      _svc = ChromeUtils.importESModule('resource://gre/modules/Services.sys.mjs').Services;
-      return _svc;
-    } catch {}
-    return null;
-  }
-
-  // ─── Preference readers ───────────────────────────────────────────────────
+  // ─── Pref helpers ─────────────────────────────────────────────────────────
   function getPrefBool(key, def = false) {
-    try { return svc()?.prefs.getBoolPref(key, def); } catch { return def; }
+    try { return Services.prefs.getBoolPref(key, def); } catch { return def; }
   }
   function getPrefInt(key, def = 0) {
-    try { return svc()?.prefs.getIntPref(key, def); } catch { return def; }
+    try { return Services.prefs.getIntPref(key, def); } catch { return def; }
+  }
+  const isEnabled    = () => getPrefBool(PREF.enabled,      true);
+  const doAddrbar    = () => getPrefBool(PREF.addrbar,      true);
+  const doSidebar    = () => getPrefBool(PREF.sidebar,      true);
+  const doWindowTint = () => getPrefBool(PREF.windowTint,   false);
+  const getTintPct   = () => Math.max(0, Math.min(60, getPrefInt(PREF.tintStrength, 18)));
+  const getTransMs   = () => Math.max(0, Math.min(2000, getPrefInt(PREF.transitionMs, 100)));
+
+  // ─── Chrome-side pixel sampler ────────────────────────────────────────────
+  //
+  // drawWindow() is a chrome-only API. Since this uc.js runs in chrome context,
+  // we can sample the rendered page content directly — including Boost filters —
+  // without any frame script. This is the primary color source.
+  //
+  let _sampleCanvas = null;
+  let _sampleCtx    = null;
+  const SAMP_W = 12;
+
+  function ensureSampleCanvas() {
+    if (_sampleCtx) return _sampleCtx;
+    try {
+      _sampleCanvas = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+      _sampleCanvas.width  = SAMP_W;
+      _sampleCanvas.height = SAMP_W;
+      _sampleCtx = _sampleCanvas.getContext('2d', { willReadFrequently: true });
+    } catch {
+      _sampleCanvas = _sampleCtx = null;
+    }
+    return _sampleCtx;
   }
 
-  function isEnabled()     { return getPrefBool(PREF.enabled,      true); }
-  function doAddrbar()     { return getPrefBool(PREF.addrbar,      true); }
-  function doSidebar()     { return getPrefBool(PREF.sidebar,      true); }
-  function doWindowTint()  { return getPrefBool(PREF.windowTint,   false); }
-  function getTintPct()    { return Math.max(0, Math.min(60, getPrefInt(PREF.tintStrength, 18))); }
-  function getTransMs()    { return Math.max(0, Math.min(2000, getPrefInt(PREF.transitionMs, 100))); }
+  function samplePixelFromChrome(browser) {
+    try {
+      const win = browser?.contentWindow;
+      if (!win) return null;
 
-  // ─── CSS variable helpers ─────────────────────────────────────────────────
-  function cssSet(name, value) {
-    if (root.style.getPropertyValue(name) !== value)
-      root.style.setProperty(name, value);
-  }
-  function cssClear(name) {
-    if (root.style.getPropertyValue(name))
-      root.style.removeProperty(name);
+      const ctx = ensureSampleCanvas();
+      if (!ctx || typeof ctx.drawWindow !== 'function') return null;
+
+      // clientWidth of the browser element gives us the actual viewport width
+      const vw = browser.clientWidth || win.innerWidth || 0;
+      const vh = browser.clientHeight || win.innerHeight || 0;
+      if (vw <= 0 || vh <= 0) return null;
+
+      // Sample a strip SAMP_W × SAMP_W pixels at the horizontal center,
+      // 3px from the top of the page viewport.
+      const x = Math.max(0, Math.floor(vw / 2) - Math.floor(SAMP_W / 2));
+      const y = 3;
+
+      ctx.clearRect(0, 0, SAMP_W, SAMP_W);
+      ctx.drawWindow(win, x, y, SAMP_W, SAMP_W, 'rgba(0,0,0,0)');
+
+      const d = ctx.getImageData(0, 0, SAMP_W, SAMP_W).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < SAMP_W * SAMP_W; i++) {
+        const o = i * 4;
+        if (d[o + 3] < 20) continue; // skip transparent
+        r += d[o]; g += d[o + 1]; b += d[o + 2]; n++;
+      }
+      if (!n) return null;
+      return `rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`;
+    } catch {
+      return null;
+    }
   }
 
-  // ─── Theme application ────────────────────────────────────────────────────
+  // ─── Foreground color from background luminance ───────────────────────────
+  function chooseFg(bg) {
+    const m = String(bg || '').match(/rgba?\(([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)/);
+    if (!m) return null;
+    const lum = (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255;
+    return lum > 0.55 ? 'rgba(11,13,16,0.92)' : 'rgba(245,247,251,0.96)';
+  }
+
+  // ─── Apply / clear theme ──────────────────────────────────────────────────
+  //
+  // We set Zen's native CSS variables directly.
+  // --zen-tab-header-background / --zen-tab-header-foreground are read by
+  // Zen's own stylesheets for the navbar and, with our style.css, the sidebar.
+  //
   function applyTheme(bg, fg) {
     if (!bg) { clearTheme(); return; }
 
-    const ms       = getTransMs();
-    const tintPct  = getTintPct();
+    const ms      = getTransMs();
+    const tintPct = getTintPct();
 
-    cssSet('--zen-vivid-bg',         bg);
-    cssSet('--zen-vivid-fg',         fg || 'inherit');
-    cssSet('--zen-vivid-transition', `${ms}ms linear`);
-    cssSet('--zen-vivid-tint-pct',   `${tintPct}%`);
+    root.style.setProperty('--zen-tab-header-background',  bg);
+    root.style.setProperty('--zen-tab-header-foreground',  fg || 'inherit');
+    root.style.setProperty('--zen-vivid-transition',       `${ms}ms linear`);
+    root.style.setProperty('--zen-vivid-tint-bg',         bg);
+    root.style.setProperty('--zen-vivid-tint-pct',        `${tintPct}%`);
 
     root.setAttribute('data-zen-vivid', '1');
     root.toggleAttribute('data-zen-vivid-addrbar',  doAddrbar());
@@ -92,10 +140,11 @@
   }
 
   function clearTheme() {
-    cssClear('--zen-vivid-bg');
-    cssClear('--zen-vivid-fg');
-    cssClear('--zen-vivid-transition');
-    cssClear('--zen-vivid-tint-pct');
+    root.style.removeProperty('--zen-tab-header-background');
+    root.style.removeProperty('--zen-tab-header-foreground');
+    root.style.removeProperty('--zen-vivid-transition');
+    root.style.removeProperty('--zen-vivid-tint-bg');
+    root.style.removeProperty('--zen-vivid-tint-pct');
     root.removeAttribute('data-zen-vivid');
     root.removeAttribute('data-zen-vivid-addrbar');
     root.removeAttribute('data-zen-vivid-sidebar');
@@ -103,336 +152,273 @@
     lastKey = '';
   }
 
-  // ─── Message from frame script ───────────────────────────────────────────
-  function onColorMessage({ data }) {
+  // ─── Full resample cycle ──────────────────────────────────────────────────
+  function resample(browser) {
     if (!isEnabled()) { clearTheme(); return; }
-    const key = (data?.href || '') + '|' + (data?.bg || '') + '|' + (data?.fg || '');
+
+    browser = browser || gBrowser?.selectedBrowser;
+    if (!browser) return;
+
+    // Primary: chrome-side pixel read (captures Boost filters too)
+    let bg = samplePixelFromChrome(browser);
+
+    // Fallback if pixel read fails: wait for frame script CSS/meta fallback
+    // (the frame script sends MSG_FALLBACK with a bg color when available)
+    if (!bg) return; // frame script fallback will fire separately
+
+    const fg  = chooseFg(bg);
+    const key = (browser.currentURI?.spec || '') + '|' + bg + '|' + fg;
     if (key === lastKey) return;
     lastKey = key;
-    applyTheme(data?.bg || null, data?.fg || null);
+    applyTheme(bg, fg);
   }
 
-  // ─── Force re-sample in a specific browser frame ──────────────────────────
-  function forceSample(browser) {
+  function scheduleResample(browser, delay = 0) {
+    if (delay === 0) {
+      resample(browser);
+      return;
+    }
+    clearTimeout(resampleTimer);
+    resampleTimer = setTimeout(() => resample(browser), delay);
+  }
+
+  // ─── Frame script (fallback + scroll events) ──────────────────────────────
+  //
+  // This is a minimal frame script: it only handles CSS/meta color fallback
+  // (for pages where pixel sampling fails, e.g. blank tabs) and scroll events.
+  // No drawWindow here — that runs on the chrome side above.
+  //
+  const FRAME_SRC = `(function () {
+  'use strict';
+
+  if (content.__zenVivid_frame_inited) {
+    if (typeof content.__zenVivid_frame_sample === 'function') content.__zenVivid_frame_sample();
+    return;
+  }
+  content.__zenVivid_frame_inited = true;
+
+  const MSG_FALLBACK = 'zen-vivid:fallback-color';
+  const MSG_SCROLLED = 'zen-vivid:scrolled';
+  let lastKey = '';
+  let scrollTimer = 0;
+
+  function isBlank(c) {
+    if (!c || c === 'transparent') return true;
+    const m = String(c).match(/rgba\\([^)]+\\)/);
+    if (m) {
+      const parts = m[0].match(/[\\d.]+/g) || [];
+      if (parts.length === 4 && parseFloat(parts[3]) < 0.05) return true;
+    }
+    return false;
+  }
+
+  function pickMeta(doc) {
+    const metas = doc.querySelectorAll('meta[name="theme-color" i]');
+    let fallback = null;
+    for (const m of metas) {
+      const val = m.getAttribute('content');
+      if (!val) continue;
+      const media = m.getAttribute('media');
+      if (!media) { fallback = fallback || val; continue; }
+      try { if (content.matchMedia(media).matches) return val; } catch {}
+    }
+    return fallback;
+  }
+
+  function pickCssBg() {
+    const doc = content.document;
+    const view = doc && doc.defaultView;
+    if (!view) return null;
+    for (const el of [doc.body, doc.documentElement]) {
+      if (!el) continue;
+      const bg = view.getComputedStyle(el).backgroundColor;
+      if (!isBlank(bg)) return bg;
+    }
+    return null;
+  }
+
+  function normColor(c) {
+    if (!c) return null;
     try {
-      if (browser?.messageManager) {
-        browser.messageManager.sendAsyncMessage(MSG_FORCE, {});
-      }
-    } catch {}
+      const cv = content.document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+      cv.width = cv.height = 1;
+      const cx = cv.getContext('2d');
+      cx.fillStyle = c.trim();
+      cx.fillRect(0, 0, 1, 1);
+      const d = cx.getImageData(0, 0, 1, 1).data;
+      if (d[3] < 20) return null;
+      return 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+    } catch { return null; }
+  }
+
+  function sendFallback() {
+    const doc = content.document;
+    if (!doc || doc.readyState === 'loading') return;
+    const bg = normColor(pickMeta(doc)) || pickCssBg();
+    if (!bg) return;
+    const href = content.location && content.location.href || '';
+    const key = href + '|' + bg;
+    if (key === lastKey) return;
+    lastKey = key;
+    sendAsyncMessage(MSG_FALLBACK, { bg, href });
+  }
+  content.__zenVivid_frame_sample = sendFallback;
+
+  function onScroll() {
+    if (scrollTimer) return;
+    scrollTimer = content.setTimeout(function () {
+      scrollTimer = 0;
+      sendAsyncMessage(MSG_SCROLLED, {});
+    }, 160);
+  }
+
+  addMessageListener('zen-vivid:request-fallback', function () {
+    content.setTimeout(sendFallback, 20);
+  });
+
+  content.addEventListener('scroll', onScroll, { capture: true, passive: true });
+
+  // Watch for theme attribute changes (dark/light mode switches)
+  function startObserving() {
+    const doc = content.document;
+    if (!doc || !doc.body) { content.setTimeout(startObserving, 150); return; }
+    const ATTRS = ['class','style','theme','data-theme','data-mode','data-bs-theme',
+                   'data-color-scheme','data-color-mode','data-dark-mode','color-scheme'];
+    const obs = new content.MutationObserver(sendFallback);
+    obs.observe(doc.documentElement, { attributes: true, attributeFilter: ATTRS });
+    obs.observe(doc.body,            { attributes: true, attributeFilter: ATTRS });
+  }
+
+  if (content.document.readyState === 'loading') {
+    content.document.addEventListener('DOMContentLoaded', sendFallback, { once: true, capture: true });
+  } else {
+    sendFallback();
+  }
+  startObserving();
+  content.addEventListener('load', function () {
+    content.setTimeout(sendFallback, 300);
+  }, { capture: true });
+  content.addEventListener('pageshow', function () {
+    content.setTimeout(sendFallback, 50);
+  }, { capture: true });
+
+})();`;
+
+  const FRAME_URL = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(FRAME_SRC);
+
+  // ─── Fallback color message handler ───────────────────────────────────────
+  function onFallbackColor({ data }) {
+    if (!isEnabled()) { clearTheme(); return; }
+    if (!data?.bg) return;
+
+    const browser = gBrowser?.selectedBrowser;
+    // Only use fallback if chrome pixel sampling didn't already set a key
+    if (lastKey) return;
+
+    const fg  = chooseFg(data.bg);
+    const key = (data.href || '') + '|' + data.bg + '|' + fg;
+    if (key === lastKey) return;
+    lastKey = key;
+    applyTheme(data.bg, fg);
+  }
+
+  // ─── Scroll message handler ────────────────────────────────────────────────
+  function onScrolled() {
+    const browser = gBrowser?.selectedBrowser;
+    if (browser) resample(browser);
   }
 
   // ─── Boost detection ─────────────────────────────────────────────────────
   function isBoostActive() {
-    return !!document.getElementById('zen-site-data-icon-button')?.hasAttribute('boosting');
+    const btn = document.getElementById('zen-site-data-icon-button');
+    return btn?.hasAttribute('boosting') || btn?.getAttribute('boosting') === 'true';
   }
 
   function onBoostChange() {
     const active = isBoostActive();
     if (active === boostActive) return;
     boostActive = active;
-    // Give Boost's CSS filter time to render before re-sampling
+    // Give Boost's CSS time to apply before re-sampling
     const browser = gBrowser?.selectedBrowser;
     if (browser) {
-      setTimeout(() => forceSample(browser), 60);
-      setTimeout(() => forceSample(browser), 280);
+      scheduleResample(browser, 80);
+      scheduleResample(browser, 320);
     }
   }
 
   function observeBoost() {
     const btn = document.getElementById('zen-site-data-icon-button');
-    if (!btn) { setTimeout(observeBoost, 700); return; }
+    if (!btn) { setTimeout(observeBoost, 800); return; }
     boostActive = isBoostActive();
     if (boostObserver) boostObserver.disconnect();
     boostObserver = new MutationObserver(onBoostChange);
-    boostObserver.observe(btn, { attributes: true, attributeFilter: ['boosting'] });
+    boostObserver.observe(btn, { attributes: true });
   }
 
   // ─── Tab events ───────────────────────────────────────────────────────────
   function onTabSelect() {
+    lastKey = ''; // force re-apply for the new tab
     const browser = gBrowser?.selectedBrowser;
     if (!browser) return;
-    // Ask the already-loaded frame script for its cached/current color
-    forceSample(browser);
+    // Multiple delays to catch pages at different load stages
+    scheduleResample(browser, 0);
+    scheduleResample(browser, 300);
+    scheduleResample(browser, 800);
+    // Also ask frame script for CSS fallback
+    try { browser.messageManager?.sendAsyncMessage('zen-vivid:request-fallback', {}); } catch {}
   }
 
-  // Track navigation to clear stale color during page load
+  // ─── Navigation listener ──────────────────────────────────────────────────
   const progressListener = {
     onStateChange(browser, webProgress, _req, flags, _status) {
       if (!webProgress.isTopLevel) return;
       if (browser !== gBrowser?.selectedBrowser) return;
-      const STATE_START = 0x00000001;
-      const STATE_IS_NETWORK = 0x00000040;
-      if (flags & STATE_START & STATE_IS_NETWORK) {
+      // Clear on navigation start
+      if (flags & 0x00000001 /* STATE_START */ && flags & 0x00000040 /* STATE_IS_NETWORK */) {
         clearTheme();
-        lastKey = '';
       }
+      // Re-sample on page fully loaded
+      if (flags & 0x00000010 /* STATE_STOP */ && flags & 0x00000040 /* STATE_IS_NETWORK */) {
+        scheduleResample(browser, 200);
+        scheduleResample(browser, 800);
+        scheduleResample(browser, 2000);
+      }
+    },
+    onLocationChange(browser, webProgress) {
+      if (!webProgress.isTopLevel) return;
+      if (browser !== gBrowser?.selectedBrowser) return;
+      clearTheme();
+      scheduleResample(browser, 100);
     }
   };
 
-  // ─── Frame script source (embedded, injected via data: URL) ──────────────
-  //
-  // This runs inside the content process for every browser tab.
-  // It samples pixel colors from the very top of the rendered page and
-  // sends them back to the chrome script via sendAsyncMessage.
-  //
-  const FRAME_SOURCE = /* javascript */ `(function () {
-    'use strict';
-
-    // ── Init guard ───────────────────────────────────────────────────────────
-    if (content.__zenVivid_inited) {
-      if (typeof content.__zenVivid_sample === 'function') content.__zenVivid_sample(true);
-      return;
-    }
-    content.__zenVivid_inited = true;
-
-    const MSG      = 'zen-vivid:color';
-    const SAMP_W   = 9;    // pixels wide to sample across
-    const SAMP_Y   = 3;    // pixels from top of viewport to sample at
-    const DEBOUNCE = 160;  // ms debounce for scroll / mutation events
-
-    let lastKey       = '';
-    let debounceTimer = 0;
-    let canvas        = null;
-    let ctx           = null;
-
-    // ── Canvas for color math and drawWindow ─────────────────────────────────
-    function ensureCanvas() {
-      if (canvas && ctx) return true;
-      try {
-        canvas = content.document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
-        canvas.width  = SAMP_W;
-        canvas.height = SAMP_W;
-        ctx = canvas.getContext('2d', { willReadFrequently: true });
-        return !!ctx;
-      } catch { canvas = ctx = null; return false; }
-    }
-
-    // ── Read actual rendered pixels at top of viewport (captures Boost too) ──
-    function readPixelTop() {
-      try {
-        const w = content.innerWidth  | 0;
-        const h = content.innerHeight | 0;
-        if (w <= 0 || h <= 0 || !ensureCanvas() || !ctx.drawWindow) return null;
-
-        const x = Math.max(0, Math.floor(w / 2) - Math.floor(SAMP_W / 2));
-        const y = Math.max(0, Math.min(SAMP_Y, h - SAMP_W));
-
-        ctx.clearRect(0, 0, SAMP_W, SAMP_W);
-        ctx.drawWindow(content, x, y, SAMP_W, SAMP_W, 'rgba(0,0,0,0)');
-
-        const d = ctx.getImageData(0, 0, SAMP_W, SAMP_W).data;
-        let r = 0, g = 0, b = 0, n = 0;
-        for (let i = 0; i < SAMP_W * SAMP_W; i++) {
-          const o = i * 4;
-          if (d[o + 3] < 20) continue;  // skip nearly transparent pixels
-          r += d[o]; g += d[o + 1]; b += d[o + 2]; n++;
-        }
-        if (!n) return null;
-        return 'rgb(' + Math.round(r / n) + ',' + Math.round(g / n) + ',' + Math.round(b / n) + ')';
-      } catch { return null; }
-    }
-
-    // ── Normalize any CSS color string to rgb() via canvas ───────────────────
-    function normColor(color) {
-      if (!color || !ensureCanvas()) return null;
-      try {
-        ctx.clearRect(0, 0, 1, 1);
-        ctx.fillStyle = 'rgba(0,0,0,0)';
-        ctx.fillStyle = color.trim();
-        ctx.fillRect(0, 0, 1, 1);
-        const d = ctx.getImageData(0, 0, 1, 1).data;
-        if (d[3] < 20) return null;
-        return 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
-      } catch { return null; }
-    }
-
-    // ── Semantic: <meta name="theme-color"> (respects media queries) ─────────
-    function pickMetaThemeColor() {
-      const metas = content.document.querySelectorAll('meta[name="theme-color" i]');
-      let fallback = null;
-      for (const m of metas) {
-        const val = m.getAttribute('content');
-        if (!val) continue;
-        const media = m.getAttribute('media');
-        if (!media) { fallback = fallback || val; continue; }
-        try { if (content.matchMedia(media).matches) return val; } catch {}
-      }
-      return fallback;
-    }
-
-    // ── Semantic: computed background of <body> or <html> ───────────────────
-    function readComputedBg() {
-      const doc  = content.document;
-      const view = doc && doc.defaultView;
-      if (!view) return null;
-      for (const el of [doc.body, doc.documentElement]) {
-        if (!el) continue;
-        const bg = view.getComputedStyle(el).backgroundColor;
-        if (!bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)') continue;
-        // Skip fully-transparent rgba
-        const m = bg.match(/rgba\\([^)]+\\)/);
-        if (m) {
-          const parts = m[0].match(/[\\d.]+/g) || [];
-          if (parts.length === 4 && parseFloat(parts[3]) < 0.08) continue;
-        }
-        return bg;
-      }
-      return null;
-    }
-
-    // ── Visual: walk ancestors at top-center point ────────────────────────────
-    function readAncestorBg() {
-      try {
-        const doc  = content.document;
-        const view = doc && doc.defaultView;
-        const w    = content.innerWidth | 0;
-        if (!view || w <= 0) return null;
-        let el = doc.elementFromPoint(Math.floor(w / 2), SAMP_Y + 8);
-        for (let i = 0; el && i < 12; i++) {
-          const bg = view.getComputedStyle(el).backgroundColor;
-          if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
-            const parts = (bg.match(/[\\d.]+/g) || []);
-            if (parts.length < 4 || parseFloat(parts[3]) > 0.08) return bg;
-          }
-          el = el.parentElement;
-        }
-      } catch {}
-      return null;
-    }
-
-    // ── Compute readable foreground for a background ─────────────────────────
-    function chooseFg(bg) {
-      const m = String(bg || '').match(/rgba?\\(([\\d.]+)[, ]+([\\d.]+)[, ]+([\\d.]+)/);
-      if (!m) return null;
-      const lum = (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255;
-      return lum > 0.55 ? 'rgba(11,13,16,0.92)' : 'rgba(245,247,251,0.96)';
-    }
-
-    // ── Main sampling function ────────────────────────────────────────────────
-    function doSample(force) {
-      const doc = content.document;
-      if (!doc || doc.readyState === 'loading') return;
-
-      // Priority: rendered pixels → meta theme-color → body/html bg → ancestor walk
-      let bg = readPixelTop();
-      if (!bg) bg = normColor(pickMetaThemeColor());
-      if (!bg) bg = readComputedBg();
-      if (!bg) bg = readAncestorBg();
-
-      const fg   = chooseFg(bg);
-      const href = content.location && content.location.href || '';
-      const key  = href + '|' + (bg || '') + '|' + (fg || '');
-
-      if (!force && key === lastKey) return;
-      lastKey = key;
-      sendAsyncMessage(MSG, { bg: bg || null, fg: fg || null, href });
-    }
-    content.__zenVivid_sample = doSample;
-
-    // ── Debounced re-sample (for scroll + mutations) ──────────────────────────
-    function debouncedSample() {
-      if (debounceTimer) return;
-      debounceTimer = content.setTimeout(function () {
-        debounceTimer = 0;
-        doSample(false);
-      }, DEBOUNCE);
-    }
-
-    // ── MutationObserver for theme switches (dark/light mode etc.) ────────────
-    function startObserving() {
-      const doc = content.document;
-      if (!doc || !doc.body) { content.setTimeout(startObserving, 150); return; }
-
-      const THEME_ATTRS = [
-        'class', 'style', 'theme', 'data-theme', 'data-mode',
-        'data-bs-theme', 'data-color-scheme', 'data-color-mode',
-        'data-dark-mode', 'color-scheme', 'data-prefers-color-scheme'
-      ];
-
-      const obs = new content.MutationObserver(debouncedSample);
-      obs.observe(doc.documentElement, { attributes: true, attributeFilter: THEME_ATTRS });
-      obs.observe(doc.body,           { attributes: true, attributeFilter: THEME_ATTRS });
-
-      if (doc.head) {
-        const headObs = new content.MutationObserver(debouncedSample);
-        headObs.observe(doc.head, {
-          childList: true, subtree: true, attributes: true,
-          attributeFilter: ['content', 'media', 'href', 'disabled']
-        });
-      }
-    }
-
-    // ── Listen for force-sample commands from chrome ──────────────────────────
-    addMessageListener('zen-vivid:force-sample', function () {
-      content.setTimeout(function () { doSample(true); }, 40);
-    });
-
-    // ── Scroll triggers re-sample so color follows the page ──────────────────
-    content.addEventListener('scroll', debouncedSample, { capture: true, passive: true });
-
-    // ── Initial sampling ─────────────────────────────────────────────────────
-    if (doc && doc.readyState === 'loading') {
-      content.document.addEventListener('DOMContentLoaded', function () { doSample(true); },
-        { capture: true, once: true });
-    } else {
-      doSample(true);
-    }
-
-    startObserving();
-
-    content.addEventListener('load', function () {
-      content.setTimeout(function () { doSample(true); }, 100);
-      content.setTimeout(function () { doSample(true); }, 800);
-    }, { capture: true });
-
-    content.addEventListener('pageshow', function () {
-      content.setTimeout(function () { doSample(true); }, 50);
-    }, { capture: true });
-
-  })();`;
-
-  // ─── Register frame script (once per session) ─────────────────────────────
-  const FRAME_URL = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(FRAME_SOURCE);
-
-  function initFrameScript() {
-    try {
-      // Global message manager: applies the frame script to all current + future tabs
-      Services.mm.loadFrameScript(FRAME_URL, true);
-      Services.mm.addMessageListener(MSG_COLOR, onColorMessage);
-    } catch (e) {
-      console.error('[zen-vivid] Failed to load frame script:', e);
-    }
-  }
-
-  // ─── Wiring ───────────────────────────────────────────────────────────────
+  // ─── Init ─────────────────────────────────────────────────────────────────
   function init() {
-    // Register the frame script in all content frames
-    initFrameScript();
+    // Load frame script into all tabs (current + future)
+    Services.mm.loadFrameScript(FRAME_URL, true);
+    Services.mm.addMessageListener(MSG_FALLBACK, onFallbackColor);
+    Services.mm.addMessageListener(MSG_SCROLLED, onScrolled);
 
-    // Handle tab switches
     gBrowser.tabContainer.addEventListener('TabSelect', onTabSelect, false);
-
-    // Handle navigation (clear color on load start)
     gBrowser.addProgressListener(progressListener);
 
-    // Observe the Boost button (may not exist yet on early load)
     observeBoost();
 
-    // Sample current tab on first run
+    // Initial sample
     const browser = gBrowser?.selectedBrowser;
     if (browser) {
-      setTimeout(() => forceSample(browser), 400);
+      scheduleResample(browser, 400);
+      scheduleResample(browser, 1000);
     }
 
-    // Clean up on window close
     window.addEventListener('unload', () => {
-      try { Services.mm.removeMessageListener(MSG_COLOR, onColorMessage); } catch {}
+      try { Services.mm.removeMessageListener(MSG_FALLBACK, onFallbackColor); } catch {}
+      try { Services.mm.removeMessageListener(MSG_SCROLLED, onScrolled); } catch {}
       try { gBrowser.removeProgressListener(progressListener); } catch {}
       try { boostObserver?.disconnect(); } catch {}
     }, { once: true });
   }
 
-  // Wait for gBrowser to be available
   if (typeof gBrowser !== 'undefined') {
     init();
   } else {

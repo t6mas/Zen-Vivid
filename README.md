@@ -1,46 +1,65 @@
-# Zen Vivid
+# Zen Vivid v1.1.0
 
-Blends your **addressbar** and **sidebar** with the actual rendered color at the very top of any page — including colors set by **Zen Boosts**.
+Page-aware color blending for the address bar and sidebar in Zen Browser.
 
-## How it works
+## What it does
 
-Zen Vivid reads the real rendered pixels right below the addressbar using `drawWindow()`. This means:
+- Reads the **actual rendered color** at the top of the page (a few pixels below the URL bar)
+- Applies it to the **toolbar** and **sidebar** with smooth transitions
+- Works with **Zen Boosts** — the sampler captures the color after Boost filters are applied
+- **Scroll-aware** — if the page background changes as you scroll, the color follows
+- Supports **compact mode**, **single-toolbar mode**, and **right-side sidebar**
 
-- It captures **whatever is actually visible** — no guessing from CSS declarations
-- It works with **Zen Boosts** color tints, since those modify rendered output
-- It **updates as you scroll** — if the page background changes when you scroll down, the UI color follows
-- It falls back gracefully: if pixels can't be read, it tries `<meta name="theme-color">`, then `body`/`html` background colors
+## How it works (v1.1.0 architecture)
 
-## Features
+### Chrome-side pixel sampling
+The primary color source uses `drawWindow()` directly in the chrome (privileged) context —
+the same process where the uc.js script runs. This gives two key advantages:
 
-- **Addressbar coloring** — toolbar, title bar, notifications bar
-- **Sidebar coloring** — all sidebar elements, icons, tabs, separators
-- **Scroll-aware** — color updates within ~160ms of the page background changing
-- **Boost-aware** — instantly re-samples when you activate or deactivate a Boost
-- **Optional window tint** — apply a light tint to the content area
-- **Configurable transition speed** — from instant to 2 seconds
+1. It captures Boost color filters (because it reads the fully-composited rendered output)
+2. It always works, regardless of the page's same-origin policy
 
-## Settings
+### Zen native CSS variables
+Instead of fighting Zen's own styles with `!important` everywhere,
+zen-vivid sets `--zen-tab-header-background` and `--zen-tab-header-foreground`
+on `:root`. Zen's own stylesheets read these variables for the toolbar,
+and `style.css` uses them for the sidebar. This is the same approach
+used by the official Blended Sidebar mod.
 
-Open Zen Mods → Zen Vivid → Settings (⚙️):
+### Frame script (lightweight fallback)
+A minimal frame script handles:
+- CSS/meta fallback colors for pages where pixel sampling fails (e.g., new-tab page)
+- Scroll events (sends a message to trigger a re-sample on the chrome side)
+- Theme-attribute mutation observation (for dark/light mode switches)
+
+## Settings (⚙️)
 
 | Setting | Default | Description |
 |---|---|---|
-| Enable Zen Vivid | ✅ | Toggle the whole mod |
-| Colorize addressbar | ✅ | Color the toolbar and title bar |
-| Colorize sidebar | ✅ | Color the sidebar and its icons |
-| Window tint | ☐ | Apply subtle color tint to the page background area |
-| Tint strength | 18 | How strong the window tint is (0–60) |
-| Transition speed | 100ms | How fast colors animate when they change |
+| Enable Zen Vivid | ✅ | Master toggle |
+| Colorize address bar | ✅ | Apply color to the toolbar/navbar |
+| Colorize sidebar | ✅ | Apply color to the sidebar |
+| Window tint | ❌ | Subtle tint over the content area |
+| Tint strength | 18% | Intensity when window tint is on |
+| Transition speed | 100ms | How fast the color animation is |
 
-## Compatibility
+## Installation
 
-- Works with all Zen modes: **normal**, **compact**, **single-toolbar**
-- Works with **vertical tabs on either side**
-- Compatible with **Zen Boosts** (color detection reacts to boost activation)
-- Does **not** conflict with other mods that don't also set `--zen-vivid-*` variables
+1. Place `zen-vivid.uc.js` in your `chrome/` folder (or use a mod manager)
+2. Place `style.css` where your mod manager can load it (or `@import` it from `userChrome.css`)
+3. Restart Zen Browser
+4. Open the mod settings panel (⚙️) to configure
 
-## Notes
+## Changelog
 
-- On pages where the very top is transparent (e.g. overlapping headers), the mod falls back to the `<meta name="theme-color">` tag or the computed body background.
-- Dark mode switches on a page are detected within the debounce window (~160ms) via MutationObserver.
+### v1.1.0
+- **Fix**: Pixel sampling now runs from chrome context using `drawWindow()` —
+  this was the root cause of the v1.0.0 failure (data: URL frame scripts lack chrome privileges)
+- **Fix**: Now sets Zen's native CSS variables (`--zen-tab-header-background`,
+  `--zen-tab-header-foreground`) instead of custom ones, so all UI elements
+  pick up the color correctly without fighting Zen's own styles
+- Sidebar CSS rewritten to match Blended Sidebar's proven approach
+- Frame script is now lightweight (scroll events + CSS fallback only)
+
+### v1.0.0
+- Initial release

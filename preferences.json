@@ -1,24 +1,13 @@
 [
   {
-    "type": "separator",
-    "label": "Zen Vivid",
-    "margin": "16px 0 10px 0"
-  },
-  {
     "property": "uc.zen-vivid.enabled",
     "label": "Enable Zen Vivid",
     "type": "checkbox",
     "defaultValue": true
   },
-
-  {
-    "type": "separator",
-    "label": "What to colorize",
-    "margin": "20px 0 10px 0"
-  },
   {
     "property": "uc.zen-vivid.colorize-addressbar",
-    "label": "Colorize addressbar & toolbar",
+    "label": "Colorize address bar / toolbar",
     "type": "checkbox",
     "defaultValue": true
   },
@@ -28,34 +17,26 @@
     "type": "checkbox",
     "defaultValue": true
   },
-
-  {
-    "type": "separator",
-    "label": "Window tint",
-    "margin": "20px 0 10px 0"
-  },
   {
     "property": "uc.zen-vivid.window-tint",
-    "label": "Apply subtle tint to the page area",
+    "label": "Subtle window tint (content area)",
     "type": "checkbox",
     "defaultValue": false
   },
   {
     "property": "uc.zen-vivid.tint-strength",
-    "label": "Tint strength (0 – 60)",
-    "type": "string",
-    "defaultValue": "18"
-  },
-
-  {
-    "type": "separator",
-    "label": "Animation",
-    "margin": "20px 0 10px 0"
+    "label": "Tint strength (0–60 %)",
+    "type": "number",
+    "defaultValue": 18,
+    "min": 0,
+    "max": 60
   },
   {
     "property": "uc.zen-vivid.transition-ms",
     "label": "Color transition speed (ms)",
-    "type": "string",
-    "defaultValue": "100"
+    "type": "number",
+    "defaultValue": 100,
+    "min": 0,
+    "max": 2000
   }
 ]

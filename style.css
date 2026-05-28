@@ -1,66 +1,52 @@
 :root {
-  --blended-sync-speed: 300ms; /* Modificable luego por preference.json */
+  --zen-vivid-bg: var(--zen-main-browser-background);
+  --zen-vivid-fg: inherit;
+  --blended-sync-speed: 300ms;
   --blended-sync-curve: ease;
 }
 
-/* Transiciones para la barra superior de Zen */
+/* 1. BARRA SUPERIOR (Adressbar) */
+#navigator-toolbox,
 #zen-appcontent-navbar-wrapper,
-#nav-bar-customization-target,
-#navigator-toolbox {
-  transition-property: background-color, color, fill, stroke !important;
-  transition-duration: var(--blended-sync-speed) !important;
-  transition-timing-function: var(--blended-sync-curve) !important;
+#nav-bar {
+  background-color: var(--zen-vivid-bg) !important;
+  color: var(--zen-vivid-fg) !important;
+  transition: background-color var(--blended-sync-speed) var(--blended-sync-curve), 
+              color var(--blended-sync-speed) var(--blended-sync-curve) !important;
 }
 
-/* Tu código del Sidebar (Style_3.css adaptado) */
-@layer blended-sidebar {
-  #main-window,
-  #browser,
-  #appcontent {
-    background-image: none !important;
-    background-color: var(--zen-tab-header-background, var(--zen-main-browser-background)) !important;
-    transition-property: background-color !important;
-    transition-duration: var(--blended-sync-speed) !important;
-    transition-timing-function: var(--blended-sync-curve) !important;
-  }
+/* Iconos y textos de la barra superior */
+#nav-bar toolbarbutton, 
+#TabsToolbar toolbarbutton,
+#PersonalToolbar toolbarbutton,
+#urlbar-input {
+  color: var(--zen-vivid-fg) !important;
+  fill: var(--zen-vivid-fg) !important;
+  --toolbarbutton-icon-fill: var(--zen-vivid-fg) !important;
+}
 
-  #navigator-toolbox,
-  .browserSidebarContainer,
-  #zen-sidebar-top-buttons,
-  #zen-sidebar-foot-buttons,
-  #sidebar-box,
-  #sidebar-main,
-  #titlebar,
-  #notifications-toolbar,
-  #zen-media-controls-toolbar,
-  .zen-workspace-tabs-section {
-    appearance: none !important;
-    -moz-appearance: none !important;
-    background-image: none !important;
-    background-color: var(--zen-tab-header-background, var(--zen-main-browser-background)) !important;
-    color: var(--zen-tab-header-foreground, inherit) !important;
-    border-radius: 0 !important;
-    border: none !important;
-    clip-path: none !important;
-    box-shadow: none !important;
-    transition-property: background-color, color, fill, box-shadow !important;
-    transition-duration: var(--blended-sync-speed) !important;
-    transition-timing-function: var(--blended-sync-curve) !important;
-  }
+/* 2. BARRA LATERAL (Sidebar) */
+#sidebar-box,
+#sidebar-header,
+.sidebar-panel,
+.browserSidebarContainer,
+#zen-sidebar-top-buttons,
+#zen-sidebar-foot-buttons,
+.zen-workspace-tabs-section {
+  background-color: var(--zen-vivid-bg) !important;
+  color: var(--zen-vivid-fg) !important;
+  transition: background-color var(--blended-sync-speed) var(--blended-sync-curve), 
+              color var(--blended-sync-speed) var(--blended-sync-curve) !important;
+}
 
-  /* El resto de tus reglas para los iconos del sidebar */
-  #zen-sidebar-top-buttons toolbarbutton,
-  #zen-sidebar-foot-buttons toolbarbutton,
-  #zen-sidebar-top-buttons .toolbarbutton-icon,
-  #zen-sidebar-foot-buttons .toolbarbutton-icon,
-  #zen-sidebar-top-buttons image,
-  #zen-sidebar-foot-buttons image {
-    color: var(--zen-tab-header-foreground, inherit) !important;
-    fill: var(--zen-tab-header-foreground, currentColor) !important;
-    --toolbarbutton-icon-fill: var(--zen-tab-header-foreground, currentColor) !important;
-    opacity: 1 !important;
-    transition-property: color, fill, background-color !important;
-    transition-duration: var(--blended-sync-speed) !important;
-    transition-timing-function: var(--blended-sync-curve) !important;
-  }
+/* Iconos de la Barra Lateral */
+#zen-sidebar-top-buttons toolbarbutton,
+#zen-sidebar-foot-buttons toolbarbutton,
+#zen-sidebar-top-buttons .toolbarbutton-icon,
+#zen-sidebar-foot-buttons .toolbarbutton-icon,
+.tabbrowser-tab .tab-content,
+.tabbrowser-tab .tab-label {
+  color: var(--zen-vivid-fg) !important;
+  fill: var(--zen-vivid-fg) !important;
+  --toolbarbutton-icon-fill: var(--zen-vivid-fg) !important;
 }

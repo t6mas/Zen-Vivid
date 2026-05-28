@@ -1,0 +1,24 @@
+[
+  {
+    "type": "separator",
+    "label": "Configuración de Zen Vivid",
+    "margin": "10px 0"
+  },
+  {
+    "property": "uc.zen-vivid.sidebar.enabled",
+    "label": "Colorear también el Sidebar",
+    "type": "checkbox",
+    "defaultValue": true
+  },
+  {
+    "property": "uc.zen-vivid.transition.speed",
+    "label": "Velocidad de transición al scrollear",
+    "type": "dropdown",
+    "defaultValue": "0.3s",
+    "options": [
+      { "label": "Rápida", "value": "0.15s" },
+      { "label": "Suave (Recomendada)", "value": "0.3s" },
+      { "label": "Lenta", "value": "0.6s" }
+    ]
+  }
+]

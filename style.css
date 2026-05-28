@@ -1,0 +1,44 @@
+/* Variables base que inyectará nuestro script */
+:root {
+  --zen-vivid-bg: transparent;
+  --zen-vivid-fg: currentColor;
+  --zen-vivid-transition: 0.3s ease; /* Se sobrescribe con las preferencias */
+}
+
+/* Transiciones suaves para que no parpadee al hacer scroll */
+#navigator-toolbox,
+#sidebar-box,
+#sidebar-header,
+.browserSidebarContainer {
+  transition: background-color var(--zen-vivid-transition), color var(--zen-vivid-transition) !important;
+}
+
+/* 1. Colorear la barra de direcciones (Top Bar) */
+#navigator-toolbox {
+  background-color: var(--zen-vivid-bg) !important;
+  color: var(--zen-vivid-fg) !important;
+}
+
+/* Ajustar los iconos de la barra superior para que sean legibles */
+#nav-bar toolbarbutton, 
+#TabsToolbar toolbarbutton {
+  color: var(--zen-vivid-fg) !important;
+  fill: var(--zen-vivid-fg) !important;
+}
+
+/* 2. Colorear el Sidebar (Opcional según preferencias) */
+/* Usamos una pseudo-clase nativa si la preferencia está activa */
+@media (-moz-bool-pref: "uc.zen-vivid.sidebar.enabled") {
+  #sidebar-box,
+  #sidebar-header,
+  .sidebar-panel {
+    background-color: var(--zen-vivid-bg) !important;
+    color: var(--zen-vivid-fg) !important;
+  }
+  
+  /* Botones del sidebar */
+  #sidebar-header toolbarbutton {
+    color: var(--zen-vivid-fg) !important;
+    fill: var(--zen-vivid-fg) !important;
+  }
+}

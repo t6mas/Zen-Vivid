@@ -1,0 +1,162 @@
+/* ============================================================
+   Zen Vivid — style.css
+   Applies page-sampled colors to the addressbar and sidebar.
+   Variables are set by zen-vivid.uc.js on :root.
+   ============================================================ */
+
+/* ── CSS variable defaults ──────────────────────────────────── */
+:root {
+  --zen-vivid-bg:         transparent;
+  --zen-vivid-fg:         inherit;
+  --zen-vivid-transition: 100ms linear;
+  --zen-vivid-tint-pct:  18%;
+}
+
+/* ============================================================
+   ADDRESSBAR  (enabled when data-zen-vivid-addrbar is present)
+   ============================================================ */
+
+:root[data-zen-vivid][data-zen-vivid-addrbar] #navigator-toolbox,
+:root[data-zen-vivid][data-zen-vivid-addrbar] #titlebar,
+:root[data-zen-vivid][data-zen-vivid-addrbar] #notifications-toolbar,
+:root[data-zen-vivid][data-zen-vivid-addrbar] #zen-appcontent-navbar-wrapper,
+:root[data-zen-vivid][data-zen-vivid-addrbar] #zen-media-controls-toolbar {
+  background-color: var(--zen-vivid-bg) !important;
+  background-image: none !important;
+  color:            var(--zen-vivid-fg) !important;
+  transition:
+    background-color var(--zen-vivid-transition),
+    color            var(--zen-vivid-transition) !important;
+}
+
+/* Toolbar icons / buttons inherit the foreground color */
+:root[data-zen-vivid][data-zen-vivid-addrbar] #navigator-toolbox toolbarbutton,
+:root[data-zen-vivid][data-zen-vivid-addrbar] #navigator-toolbox toolbarbutton .toolbarbutton-icon,
+:root[data-zen-vivid][data-zen-vivid-addrbar] #navigator-toolbox image {
+  color: var(--zen-vivid-fg) !important;
+  fill:  var(--zen-vivid-fg) !important;
+  --toolbarbutton-icon-fill: var(--zen-vivid-fg) !important;
+  transition: color var(--zen-vivid-transition), fill var(--zen-vivid-transition) !important;
+}
+
+/* URL bar background matches the blended color */
+:root[data-zen-vivid][data-zen-vivid-addrbar] #urlbar-background {
+  background-color: color-mix(in srgb, var(--zen-vivid-fg) 10%, transparent) !important;
+  transition: background-color var(--zen-vivid-transition) !important;
+}
+
+/* ============================================================
+   SIDEBAR  (enabled when data-zen-vivid-sidebar is present)
+   ============================================================ */
+
+:root[data-zen-vivid][data-zen-vivid-sidebar] #sidebar-main,
+:root[data-zen-vivid][data-zen-vivid-sidebar] .browserSidebarContainer,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-foot-buttons,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #sidebar-box,
+:root[data-zen-vivid][data-zen-vivid-sidebar] .zen-workspace-tabs-section,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #main-window,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #browser,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #appcontent {
+  background-color: var(--zen-vivid-bg) !important;
+  background-image: none !important;
+  color:            var(--zen-vivid-fg) !important;
+  transition:
+    background-color var(--zen-vivid-transition),
+    color            var(--zen-vivid-transition) !important;
+}
+
+/* Sidebar splitters */
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-splitter,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #sidebar-splitter {
+  background-color: var(--zen-vivid-bg) !important;
+  background-image: none !important;
+  border:           none !important;
+  min-width:        5px !important;
+  width:            5px !important;
+  transition: background-color var(--zen-vivid-transition) !important;
+}
+
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-splitter:hover,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #sidebar-splitter:hover,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-splitter:active,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #sidebar-splitter:active {
+  background-color: color-mix(in srgb, var(--zen-vivid-fg) 22%, transparent) !important;
+}
+
+/* Separator between top/bottom button groups */
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons-separator {
+  background-color: color-mix(in srgb, var(--zen-vivid-fg) 18%, transparent) !important;
+  transition: background-color var(--zen-vivid-transition) !important;
+}
+
+/* Sidebar icon buttons */
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons toolbarbutton,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-foot-buttons toolbarbutton,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons .toolbarbutton-icon,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-foot-buttons .toolbarbutton-icon,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons image,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-foot-buttons image {
+  color: var(--zen-vivid-fg) !important;
+  fill:  var(--zen-vivid-fg) !important;
+  --toolbarbutton-icon-fill: var(--zen-vivid-fg) !important;
+  transition: color var(--zen-vivid-transition), fill var(--zen-vivid-transition) !important;
+}
+
+/* Hover/active states for sidebar buttons */
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons toolbarbutton:hover,
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-foot-buttons toolbarbutton:hover {
+  background-color: color-mix(in srgb, var(--zen-vivid-fg) 12%, transparent) !important;
+}
+
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons toolbarbutton[selected="true"],
+:root[data-zen-vivid][data-zen-vivid-sidebar] #zen-sidebar-top-buttons toolbarbutton[open="true"] {
+  background-color: color-mix(in srgb, var(--zen-vivid-fg) 20%, transparent) !important;
+}
+
+/* Tabs in sidebar inherit the text color */
+:root[data-zen-vivid][data-zen-vivid-sidebar] .tabbrowser-tab,
+:root[data-zen-vivid][data-zen-vivid-sidebar] .tabbrowser-tab .tab-content,
+:root[data-zen-vivid][data-zen-vivid-sidebar] .tabbrowser-tab .tab-label,
+:root[data-zen-vivid][data-zen-vivid-sidebar] .tabbrowser-tab .tab-icon-image,
+:root[data-zen-vivid][data-zen-vivid-sidebar] .zen-current-workspace-indicator-name {
+  color: var(--zen-vivid-fg) !important;
+  transition: color var(--zen-vivid-transition) !important;
+}
+
+/* ============================================================
+   WINDOW TINT  (optional subtle tint on the content area)
+   ============================================================ */
+
+:root[data-zen-vivid][data-zen-vivid-tint] #tabbrowser-tabpanels {
+  background-color:
+    color-mix(in srgb, var(--zen-vivid-bg) var(--zen-vivid-tint-pct), transparent) !important;
+  transition: background-color var(--zen-vivid-transition) !important;
+}
+
+/* ============================================================
+   COMPACT MODE  (sidebar hidden, shows on hover)
+   ============================================================ */
+
+:root[zen-compact-mode="true"][data-zen-vivid][data-zen-vivid-sidebar]
+  .browserSidebarContainer {
+  overflow: visible !important;
+}
+
+/* ============================================================
+   SINGLE TOOLBAR MODE
+   ============================================================ */
+
+:root[zen-single-toolbar="true"][data-zen-vivid][data-zen-vivid-addrbar]
+  #navigator-toolbox {
+  background-color: var(--zen-vivid-bg) !important;
+}
+
+/* ============================================================
+   WORKSPACES — hide default outline so bg shows cleanly
+   ============================================================ */
+
+:root[data-zen-vivid][data-zen-vivid-sidebar] .zen-workspace-empty-space {
+  border:  none !important;
+  outline: none !important;
+}

@@ -1,24 +1,40 @@
 [
   {
     "type": "separator",
-    "label": "Configuración de Zen Vivid",
-    "margin": "10px 0"
+    "label": "Dynamic Coloring"
   },
   {
-    "property": "uc.zen-vivid.sidebar.enabled",
-    "label": "Colorear también el Sidebar",
+    "property": "uc.zen-vivid.enabled",
+    "label": "Enable dynamic coloring",
     "type": "checkbox",
     "defaultValue": true
   },
   {
-    "property": "uc.zen-vivid.transition.speed",
-    "label": "Velocidad de transición al scrollear",
-    "type": "dropdown",
-    "defaultValue": "0.3s",
-    "options": [
-      { "label": "Rápida", "value": "0.15s" },
-      { "label": "Suave (Recomendada)", "value": "0.3s" },
-      { "label": "Lenta", "value": "0.6s" }
-    ]
+    "property": "uc.zen-vivid.color-toolbar",
+    "label": "Color the toolbar",
+    "type": "checkbox",
+    "defaultValue": true
+  },
+  {
+    "property": "uc.zen-vivid.color-sidebar",
+    "label": "Color the sidebar",
+    "type": "checkbox",
+    "defaultValue": true
+  },
+  {
+    "type": "separator",
+    "label": "Window Tint"
+  },
+  {
+    "property": "uc.zen-vivid.tint.enabled",
+    "label": "Tint browser window with page color",
+    "type": "checkbox",
+    "defaultValue": false
+  },
+  {
+    "property": "uc.zen-vivid.tint.strength",
+    "label": "Tint strength (%)",
+    "type": "string",
+    "defaultValue": "25"
   }
 ]

@@ -1,89 +1,208 @@
 // ==UserScript==
-// @name           Zen Vivid Engine V1.2
-// @description    Lee el color real renderizado de la pestaña mediante snapshots.
+// @name           Zen-Vivid
+// @description    Dynamic toolbar and sidebar coloring
+// @version        1.0.0
 // ==/UserScript==
 
 (() => {
   'use strict';
 
-  const doc = document;
-  let loopTimer;
-  let lastBg = '';
+  const FRAME_SCRIPT_URL = 'chrome://zen-vivid/content/frame.js';
+  const MESSAGE_NAME = 'zen-vivid:color';
+  const DEBOUNCE_MS = 150;
 
-  // Función matemática para saber si el texto debe ser claro u oscuro según el fondo
-  function getReadableColor(r, g, b) {
-    const a = [r, g, b].map(v => {
-      v /= 255;
-      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    });
-    const luminance = a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
-    // Tonos recomendados de Zen para máxima legibilidad
-    return luminance > 0.55 ? 'rgba(11, 13, 16, 0.92)' : 'rgba(245, 247, 251, 0.96)';
+  // Preferencias
+  const PREF_BRANCH = 'uc.zen-vivid.';
+  const PREFS = {
+    enabled: PREF_BRANCH + 'enabled',
+    colorToolbar: PREF_BRANCH + 'color-toolbar',
+    colorSidebar: PREF_BRANCH + 'color-sidebar',
+    tintEnabled: PREF_BRANCH + 'tint.enabled',
+    tintStrength: PREF_BRANCH + 'tint.strength'
+  };
+
+  const DEFAULT_SETTINGS = {
+    enabled: true,
+    colorToolbar: true,
+    colorSidebar: true,
+    tintEnabled: false,
+    tintStrength: 25
+  };
+
+  let settings = { ...DEFAULT_SETTINGS };
+  let lastColor = null;
+  let frameScriptLoaded = false;
+
+  // Cargar preferencias iniciales
+  function loadSettings() {
+    for (const [key, defaultValue] of Object.entries(DEFAULT_SETTINGS)) {
+      try {
+        const prefName = PREFS[key] || `${PREF_BRANCH}${key}`;
+        settings[key] = Services.prefs.getBoolPref(prefName) ?? defaultValue;
+      } catch {}
+    }
+    try {
+      settings.tintStrength = Services.prefs.getIntPref(PREFS.tintStrength) ?? 25;
+    } catch {}
   }
 
-  async function updateColor() {
-    const browser = gBrowser.selectedBrowser;
-    
-    // Si no hay pestaña activa o está cargando, reintentamos en un rato
-    if (!browser || !browser.browsingContext || !browser.browsingContext.currentWindowGlobal) {
-      scheduleNext();
+  // Guardar preferencias
+  function saveSetting(key, value) {
+    try {
+      const prefName = PREFS[key] || `${PREF_BRANCH}${key}`;
+      if (typeof value === 'boolean') {
+        Services.prefs.setBoolPref(prefName, value);
+      } else if (typeof value === 'number') {
+        Services.prefs.setIntPref(prefName, value);
+      }
+    } catch (e) {
+      console.error('[Zen-Vivid] Error saving setting:', key, e);
+    }
+  }
+
+  // Observar cambios de preferencias (para el engranaje)
+  function observePrefs() {
+    const prefObserver = {
+      observe(subject, topic, data) {
+        if (topic !== 'nsPref:changed') return;
+        const changedPref = data;
+        for (const [key, prefName] of Object.entries(PREFS)) {
+          if (changedPref === prefName) {
+            loadSettings();
+            applyCurrentColor(lastColor);
+            break;
+          }
+        }
+      }
+    };
+    Services.prefs.addObserver(PREF_BRANCH, prefObserver);
+  }
+
+  // Aplicar color a las variables CSS
+  function applyCurrentColor(color) {
+    if (!settings.enabled || !color) {
+      clearColors();
       return;
     }
 
-    try {
-      const wg = browser.browsingContext.currentWindowGlobal;
-      const width = browser.clientWidth || 1000;
-      
-      // Tomamos 1 solo píxel en el centro exacto, 5 píxeles por debajo de la barra
-      const rect = new DOMRect(Math.floor(width / 2), 5, 1, 1);
-      
-      // Tomamos la captura real
-      const bitmap = await wg.drawSnapshot(rect, 1, "transparent");
-      
-      // Lo dibujamos en un canvas invisible para leer el color
-      const canvas = doc.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-      canvas.width = 1;
-      canvas.height = 1;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(bitmap, 0, 0);
-      bitmap.close(); // Limpiamos memoria
-      
-      const data = ctx.getImageData(0, 0, 1, 1).data;
-      
-      // Si el píxel no es transparente (alpha > 0)
-      if (data[3] > 0) {
-        const bg = `rgb(${data[0]}, ${data[1]}, ${data[2]})`;
-        
-        // Solo inyectamos CSS si el color cambió, para no saturar los recursos de tu PC
-        if (bg !== lastBg) {
-            lastBg = bg;
-            const fg = getReadableColor(data[0], data[1], data[2]);
-            
-            // Escribimos nuestras variables personalizadas en la raíz del navegador
-            doc.documentElement.style.setProperty('--zen-vivid-bg', bg, 'important');
-            doc.documentElement.style.setProperty('--zen-vivid-fg', fg, 'important');
-        }
-      }
-    } catch (e) {
-      // Ignoramos errores de páginas internas (como about:preferences)
+    const root = document.documentElement.style;
+    const bg = color.bg;
+    const fg = color.fg;
+
+    // Toolbar
+    if (settings.colorToolbar) {
+      root.setProperty('--zen-vivid-toolbar-bg', bg, 'important');
+      root.setProperty('--zen-vivid-toolbar-fg', fg, 'important');
+    } else {
+      root.removeProperty('--zen-vivid-toolbar-bg');
+      root.removeProperty('--zen-vivid-toolbar-fg');
     }
-    
-    scheduleNext();
+
+    // Sidebar (mantenemos compatibilidad con las variables que usa tu sidebar)
+    if (settings.colorSidebar) {
+      root.setProperty('--zen-vivid-sidebar-bg', bg, 'important');
+      root.setProperty('--zen-vivid-sidebar-fg', fg, 'important');
+      // Compatibilidad con blended-sidebar
+      root.setProperty('--zen-tab-header-background', bg, 'important');
+      root.setProperty('--zen-tab-header-foreground', fg, 'important');
+    } else {
+      root.removeProperty('--zen-vivid-sidebar-bg');
+      root.removeProperty('--zen-vivid-sidebar-fg');
+      root.removeProperty('--zen-tab-header-background');
+      root.removeProperty('--zen-tab-header-foreground');
+    }
+
+    // Tinte de ventana (opcional)
+    if (settings.tintEnabled) {
+      const strength = settings.tintStrength / 100;
+      const tint = `color-mix(in srgb, ${bg} ${settings.tintStrength}%, transparent)`;
+      root.setProperty('--zen-vivid-window-tint', tint, 'important');
+    } else {
+      root.removeProperty('--zen-vivid-window-tint');
+    }
   }
 
-  function scheduleNext() {
-    clearTimeout(loopTimer);
-    // Ejecutamos la lectura cada 150ms. Esto crea la sensación de cambio instantáneo al scrollear
-    loopTimer = setTimeout(updateColor, 150);
+  function clearColors() {
+    const root = document.documentElement.style;
+    root.removeProperty('--zen-vivid-toolbar-bg');
+    root.removeProperty('--zen-vivid-toolbar-fg');
+    root.removeProperty('--zen-vivid-sidebar-bg');
+    root.removeProperty('--zen-vivid-sidebar-fg');
+    root.removeProperty('--zen-tab-header-background');
+    root.removeProperty('--zen-tab-header-foreground');
+    root.removeProperty('--zen-vivid-window-tint');
+  }
+
+  // Recibir color del frame script
+  function handleMessage(message) {
+    if (message.name !== MESSAGE_NAME) return;
+    const color = message.data;
+    lastColor = color;
+    applyCurrentColor(color);
+  }
+
+  // Inyectar frame script en una pestaña
+  function injectFrameScript(browser) {
+    if (!browser || !browser.messageManager) return;
+    try {
+      browser.messageManager.loadFrameScript(FRAME_SCRIPT_URL, false);
+      browser.messageManager.addMessageListener(MESSAGE_NAME, handleMessage);
+    } catch (e) {
+      console.error('[Zen-Vivid] Failed to load frame script:', e);
+    }
+  }
+
+  // Gestionar pestañas
+  function onTabSelect() {
+    const browser = gBrowser.selectedBrowser;
+    if (browser) {
+      injectFrameScript(browser);
+      // Forzar un refresco de color al cambiar de pestaña
+      if (browser.messageManager) {
+        browser.messageManager.sendAsyncMessage('zen-vivid:request-color');
+      }
+    }
   }
 
   function init() {
-    if (typeof gBrowser === 'undefined') {
+    if (typeof gBrowser === 'undefined' || !gBrowser) {
       setTimeout(init, 500);
       return;
     }
-    updateColor();
+
+    loadSettings();
+    observePrefs();
+
+    // Inyectar en la pestaña actual y futuras
+    gBrowser.tabContainer.addEventListener('TabSelect', onTabSelect);
+    window.addEventListener('unload', () => {
+      gBrowser.tabContainer.removeEventListener('TabSelect', onTabSelect);
+      clearColors();
+    });
+
+    // Inyectar en todas las pestañas existentes
+    for (let i = 0; i < gBrowser.tabs.length; i++) {
+      const browser = gBrowser.getBrowserForTab(gBrowser.tabs[i]);
+      injectFrameScript(browser);
+    }
+
+    // También inyectar cuando se crea una nueva pestaña
+    const originalAddTab = gBrowser.addTab;
+    gBrowser.addTab = function(...args) {
+      const tab = originalAddTab.apply(this, args);
+      const browser = gBrowser.getBrowserForTab(tab);
+      injectFrameScript(browser);
+      return tab;
+    };
+
+    // Pestaña activa inicial
+    onTabSelect();
   }
 
-  init();
+  // Esperar a que el entorno esté listo
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();

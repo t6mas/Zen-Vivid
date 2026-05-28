@@ -1,19 +1,34 @@
 {
   "id": "zen-vivid",
-  "name": "Zen Vivid",
-  "description": "Tema dinámico que adapta la barra de direcciones y el sidebar al color de la página al hacer scroll. Compatible con Boosts.",
-  "author": "Tu Nombre / Creado con Gemini",
-  "version": "1.1.0",
+  "name": "Zen-Vivid",
+  "description": "Dynamic toolbar and sidebar coloring based on the visible part of the page. Works with Boosts.",
+  "author": "Zen-Vivid Team",
+  "version": "1.0.0",
+  "ai": "partial",
+  "updatedAt": "2026-05-28",
+  "tags": [
+    "addressbar",
+    "sidebar",
+    "dynamic",
+    "boosts",
+    "theming"
+  ],
+  "fork": [
+    "zen"
+  ],
+  "scripts": {
+    "zen-vivid.uc.js": {
+      "include": [
+        "chrome://browser/content/browser.xhtml"
+      ]
+    }
+  },
   "style": {
     "chrome": "style.css",
     "content": ""
   },
-  "scripts": {
-    "zen-vivid.uc.js": {
-      "include": ["chrome://browser/content/browser.xhtml"]
-    }
-  },
   "preferences": "preferences.json",
-  "tags": ["theme", "dynamic", "scroll", "sidebar", "zen"],
-  "fork": ["zen"]
+  "readme": "https://raw.githubusercontent.com/example/zen-vivid/main/README.md",
+  "createdAt": "2026-05-28",
+  "homepage": "https://github.com/example/zen-vivid"
 }
